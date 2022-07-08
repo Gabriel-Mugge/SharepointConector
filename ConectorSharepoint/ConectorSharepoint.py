@@ -155,7 +155,7 @@ class ConectorSharepoint():
       self.tree.show()
       return
     
-  def call_the_mika():
+  def call_the_mika(self):
     i = base64.b64decode(egg)
     i = io.BytesIO(i)
     i = mpimg.imread(i, format='JPG')
