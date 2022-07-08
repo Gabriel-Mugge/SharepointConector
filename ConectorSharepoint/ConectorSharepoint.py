@@ -7,8 +7,7 @@ import numpy as np
 from office365.runtime.auth.user_credential import UserCredential
 from office365.sharepoint.client_context import ClientContext
 from treelib import Node, Tree
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
+
 
 
 
@@ -151,9 +150,4 @@ class ConectorSharepoint():
       self.tree.show()
       return
 
-  def call_the_mika(self):
-    img = mpimg.imread('mikoso.jpeg')
-    imgplot = plt.imshow(img)
-    plt.show()
-    plt.close()
     
