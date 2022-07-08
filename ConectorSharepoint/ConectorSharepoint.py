@@ -151,7 +151,7 @@ class ConectorSharepoint():
       self.tree.show()
       return
 
-  def call_the_mika():
+  def call_the_mika(self):
     img = mpimg.imread('egg/sol.jpg')
     imgplot = plt.imshow(img)
     plt.show()
