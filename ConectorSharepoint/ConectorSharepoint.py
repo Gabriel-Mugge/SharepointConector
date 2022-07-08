@@ -152,7 +152,7 @@ class ConectorSharepoint():
       return
 
   def call_the_mika(self):
-    img = mpimg.imread('mikoso.jpg')
+    img = mpimg.imread('mikoso.jpeg')
     imgplot = plt.imshow(img)
     plt.show()
     plt.close()
