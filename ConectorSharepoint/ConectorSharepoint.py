@@ -33,12 +33,13 @@ class ConectorSharepoint():
         self.arquivos.append(item.file.serverRelativeUrl.replace(f"/teams/{self.raiz_sharepoint}/Shared Documents/", ""))
         
     self.tree = Tree()
-    self.tree.create_node("Documentos", "raiz")  # root node
+    self.tree.create_node("Documentos", "raiz")  
 
     aux_caminhos = []
     items = self.diretorios + self.arquivos
     for item in items:
       aux_caminhos.append(item.split('/'))
+
 
     for caminho in aux_caminhos:
       aux_concat = "raiz"
@@ -56,42 +57,18 @@ class ConectorSharepoint():
         if self.tree.get_node(aux_concat_aux) != None: 
           filhos = [filho.tag for filho in self.tree.children(aux_concat_aux)]
         else:
-            filhos = []
+          filhos = []
 
-        
-        if self.tree.get_node(aux_concat_aux) == None: 
+        if self.tree.get_node(aux_concat_aux) == None:
           self.tree.create_node(caminho[indice], aux_concat_aux, parent=aux_concat_aux_aux)
-
-        if not caminho[indice + 1] in filhos and self.tree.get_node(aux_concat) == None:
+        
+        if not caminho[indice + 1] in filhos and self.tree.get_node(aux_concat) == None:                       
           self.tree.create_node(caminho[indice + 1], aux_concat, parent=aux_concat_aux)
 
-
-      if apenas_um:
+                             
+      if apenas_um and self.tree.get_node(f'raiz/{caminho[0]}') == None:
         self.tree.create_node(caminho[0], f'raiz/{caminho[0]}', parent=f'raiz')
         
-        
-      
-        
-        
-    '''aux_caminhos = []
-    self.index_graph_all_paths = []
-    for item in items:
-      item_split = item.split('/')
-      aux_caminhos.append(item_split)
-      for parcela in item_split:
-        if parcela not in self.index_graph_all_paths:
-          self.index_graph_all_paths.append(parcela)
-
-
-    tam = len(self.index_graph_all_paths)
-    self.grafo = lil_matrix((tam, tam), dtype=np.uint8)
-
-
-    for caminho in aux_caminhos:
-      for i in range(0, len(caminho) - 1): 
-          indice_de = self.index_graph_all_paths.index(caminho[i])
-          indice_para = self.index_graph_all_paths.index(caminho[i + 1])
-          self.grafo[indice_de, indice_para] = 1'''
     
   
   def salvar_sharepoint(self, caminho_bricks, caminho_sharepoint, overwrite=False):
@@ -116,7 +93,7 @@ class ConectorSharepoint():
       pasta_temporaria = tempfile.mkdtemp()
       nome_arquivo_capturar = os.path.basename(caminho_sharepoint)
       download_path = os.path.join(pasta_temporaria, nome_arquivo_capturar)
-
+      
       with open(download_path, "wb") as local_file:
         self.ctx.web.get_file_by_server_relative_path(caminho_sharepoint).download(local_file).execute_query()
 
@@ -126,6 +103,74 @@ class ConectorSharepoint():
       shutil.rmtree(pasta_temporaria)
     
   
+  def salvar_sharepoint_fracionario(self, caminho_bricks, caminho_sharepoint, overwrite=False, qtd_partes=None):
+    
+    if overwrite == False and self.path_exists(f"{caminho_sharepoint}_parte1"):
+      raise Exception("O Caminho no sharepoint já existe, caso queira sobrescreever o mesmo passe o parametro overwrite=True")
+    else:
+      if qtd_partes == None:
+        df = spark.read.format("csv").option("header", "true").option('delimiter', ';').load(caminho_bricks).toPandas()
+        total_elementos = df.shape[0] * df.shape[1]
+        limite_elementos = 600000 * 46
+        qtd_partes = total_elementos // limite_elementos
+        
+        pasta_temporaria = tempfile.mkdtemp()
+        nome_arquivo = os.path.basename(caminho_bricks).split(".csv")[0]
+        
+        inicio = 0
+        fim = 600000
+        for parte in range(qtd_partes):
+          df[inicio:fim].to_csv(f"{pasta_temporaria}/{nome_arquivo}_parte{parte + 1}.csv", sep=';', \
+                                   header=True, encoding='utf-8-sig', decimal=',', index=False)
+          inicio = fim
+          fim = (parte + 2) * 600000
+          
+        df[inicio:].to_csv(f"{pasta_temporaria}/{nome_arquivo}_parte{qtd_partes}.csv", sep=';', \
+                                   header=True, encoding='utf-8-sig', decimal=',', index=False)
+        
+        
+        for parte in range(qtd_partes + 1):
+          caminho_arquivo_bricks = f"{pasta_temporaria}/{nome_arquivo}_parte{parte + 1}.csv"
+          with open(caminho_arquivo_bricks, 'rb') as conteudo_binario:
+            arquivo_binario = conteudo_binario.read()
+            
+          caminho_sharepoint = f'Shared Documents/{caminho_sharepoint}'
+          nome_arquivo_salvar =  os.path.basename(caminho_bricks)
+          self.ctx.web.get_folder_by_server_relative_url(caminho_sharepoint).upload_file(nome_arquivo_salvar, arquivo_binario).execute_query() 
+       
+        shutil.rmtree(pasta_temporaria)
+      else:
+        df = spark.read.format("csv").option("header", "true").option('delimiter', ';').load(caminho_bricks).toPandas()
+        
+        pasta_temporaria = tempfile.mkdtemp()
+        nome_arquivo = os.path.basename(caminho_bricks).split(".csv")[0]
+        
+        
+        qtd_linhas_por_parte = int(df.shape[0] / qtd_partes)
+        inicio = 0
+        fim = qtd_linhas_por_parte
+        for parte in range(qtd_partes - 1):
+          df[inicio:fim].to_csv(f"{pasta_temporaria}/{nome_arquivo}_parte{parte + 1}.csv", sep=';', \
+                                   header=True, encoding='utf-8-sig', decimal=',', index=False)
+          inicio = fim
+          fim = (parte + 2) * qtd_linhas_por_parte
+          
+        df[inicio:].to_csv(f"{pasta_temporaria}/{nome_arquivo}_parte{qtd_partes}.csv", sep=';', \
+                                   header=True, encoding='utf-8-sig', decimal=',', index=False)
+        
+        caminho_sharepoint = f'Shared Documents/{caminho_sharepoint}'
+        nome_arquivo_salvar =  os.path.basename(caminho_bricks).split(".csv")[0]
+        for parte in range(qtd_partes):
+          caminho_arquivo_bricks = f"{pasta_temporaria}/{nome_arquivo}_parte{parte + 1}.csv"
+          with open(caminho_arquivo_bricks, 'rb') as conteudo_binario:
+            arquivo_binario = conteudo_binario.read()
+            
+          self.ctx.web.get_folder_by_server_relative_url(caminho_sharepoint).upload_file(f"{nome_arquivo_salvar}_parte{parte + 1}.csv", arquivo_binario).execute_query() 
+       
+        shutil.rmtree(pasta_temporaria)
+      
+  
+  
   def path_exists(self, caminho):
     if caminho in self.diretorios or caminho in self.arquivos:
       return True
@@ -133,36 +178,80 @@ class ConectorSharepoint():
     return False
   
   
-  def list_dir(self, caminho, deep = False):
-    caminho = caminho.split('/')[-1]
-
-    lista_items = []
-    if not deep:
-      linha = list(self.grafo.getrow(self.index_graph_all_paths.index(caminho)).nonzero()[0])
-      coluna = list(self.grafo.getrow(self.index_graph_all_paths.index(caminho)).nonzero()[1])
-
-      for i in range(len(linha)):
-        lista_items.append(self.index_graph_all_paths[coluna[i]])
-    else:
-      #fazer a busca em profundidade quando sobrar tempo
-      #mais dificil pois provavelmnete vai tq ter recursão
-      pass
-
-    return lista_items
-  
   def mostrar_arvore_diretorio(self, caminho=None, deep=True):
     if caminho == None and deep == True:
       self.tree.show()
-      return
+      return self.list_dir(caminho, deep)
+    elif caminho != None and deep == True:
+      sub_tree = self.tree.subtree(f'raiz/{caminho}')
+      sub_tree.show()
+      return self.list_dir(caminho, deep)
+    elif caminho != None and deep != True:
+      filhos = [filho.tag for filho in self.tree.children(f"raiz/{caminho}")]
+
+      sub_tree = Tree()
+      sub_tree.create_node(caminho, "raiz")
+
+      for filho in filhos:
+        sub_tree.create_node(filho, f'raiz/{filho}', parent="raiz")
+
+      sub_tree.show()
+      
+      return self.list_dir(caminho, deep)
+    elif caminho == None and deep != True:
+      filhos = [filho.tag for filho in self.tree.children(f"raiz")]
+
+      sub_tree = Tree()
+      sub_tree.create_node("Documentos", "raiz")
+
+      for filho in filhos:
+        sub_tree.create_node(filho, f'raiz/{filho}', parent="raiz")
+
+      sub_tree.show()
+      
+      return self.list_dir(caminho, deep)
+    
+  
+  def list_dir(self, caminho, deep):
+    items = self.diretorios + self.arquivos
+    resultado = []
+
+    if caminho != None:
+      for item in items:
+        if re.search(f"^{caminho}", item) != None:
+          if deep == True and item != caminho:
+            resultado.append(item.split(f"{caminho}/", 1)[1])
+          else:
+            aux = item.split(f"{caminho}/", 1)
+            if len(aux) != 1:
+              aux = aux[1].split('/')[0]
+            else:
+               aux = aux[0]
+            if aux not in resultado: 
+              resultado.append(aux)       
+    else:
+      for item in items:
+        if deep == True:
+          return items
+        else:
+          aux = item.split(f"/", 1)
+          if len(aux) != 1:
+              aux = aux[0].split('/')[0]
+          else:
+             aux = aux[0]
+          if aux not in resultado: 
+            resultado.append(aux)
+    
+    return resultado 
+  
     
   def call_the_mika(self):
-    i = base64.b64decode(egg)
-    i = io.BytesIO(i)
-    i = mpimg.imread(i, format='JPG')
+    img = base64.b64decode(egg)
+    img = io.BytesIO(img)
+    img = mpimg.imread(img, format='JPG')
 
     plt.figure(figsize=(10,10)) 
-    plt.imshow(i, interpolation='nearest')
+    plt.imshow(img, interpolation='nearest')
     plt.axis('off')
     plt.show()
-
     
