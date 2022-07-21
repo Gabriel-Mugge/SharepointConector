@@ -86,7 +86,7 @@ class ConectorSharepoint():
   
   def salvar_bricks(self, caminho_bricks, caminho_sharepoint, overwrite=False):
     
-    if overwrite == False and self.os.path.exists(caminho_bricks):
+    if overwrite == False and os.path.exists(caminho_bricks):
       raise Exception("O Caminho no DataBricks já existe, caso queira sobrescreever o mesmo passe o parametro overwrite=True")
     else:
       caminho_sharepoint = f"/teams/{self.raiz_sharepoint}/Shared Documents/{caminho_sharepoint}"
