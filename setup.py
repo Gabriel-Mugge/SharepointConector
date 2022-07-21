@@ -9,7 +9,6 @@ author_email='',
 license='',
 packages=['ConectorSharepoint'],
 install_requires=[
-        "git+https://github.com/vgrem/Office365-REST-Python-Client.git",
         "treelib",
         "Pillow"
     ],      
