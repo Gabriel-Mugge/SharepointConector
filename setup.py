@@ -10,6 +10,7 @@ license='',
 packages=['ConectorSharepoint'],
 install_requires=[
         "treelib",
+        "re",
         "Pillow"
     ],      
 zip_safe=False)
